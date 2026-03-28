@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Snowdrop flowers illustration">
+  <rect width="800" height="600" fill="#dce8dc"/>
+  <ellipse cx="400" cy="520" rx="320" ry="60" fill="#b8c9b0"/>
+  <path d="M400 520 L400 280" stroke="#4a6b4a" stroke-width="6"/>
+  <path d="M400 300 L380 340 L400 320 L420 340 Z" fill="#f5f7f2" stroke="#c8ddd0" stroke-width="2"/>
+  <ellipse cx="400" cy="288" rx="14" ry="22" fill="#f0faf2"/>
+</svg>

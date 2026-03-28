@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="Stylized parsley leaves illustration">
+  <rect width="800" height="600" fill="#eef2ea"/>
+  <path d="M400 480 L400 200" stroke="#5a7a52" stroke-width="8" stroke-linecap="round"/>
+  <path d="M400 320 Q280 260 260 380 Q340 340 400 320" fill="#6a9a62"/>
+  <path d="M400 360 Q520 300 540 420 Q460 380 400 360" fill="#5d8f55"/>
+  <path d="M400 400 Q320 340 300 460 Q360 420 400 400" fill="#7cb87a"/>
+</svg>

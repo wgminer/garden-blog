@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Garden blog</title>
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#posts">Skip to posts</a>
+    <header class="site-header">
+      <div class="site-inner">
+        <h1 class="site-title">Garden blog</h1>
+        <p class="site-tagline">Notes and photos from the garden.</p>
+      </div>
+    </header>
+
+    <main id="posts" class="site-main">
+      <div class="site-inner">
+        <p id="posts-status" class="posts-status" role="status" aria-live="polite">
+          Loading posts…
+        </p>
+        <div id="posts-list" class="posts-list" hidden></div>
+      </div>
+    </main>
+
+    <div
+      id="carousel"
+      class="carousel"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo viewer"
+      hidden
+    >
+      <div class="carousel__backdrop" data-carousel-close tabindex="-1"></div>
+      <div class="carousel__panel">
+        <button
+          type="button"
+          class="carousel__close"
+          data-carousel-close
+          aria-label="Close photo viewer"
+        >
+          ×
+        </button>
+        <button
+          type="button"
+          class="carousel__nav carousel__nav--prev"
+          id="carousel-prev"
+          aria-label="Previous photo"
+        >
+          ‹
+        </button>
+        <div class="carousel__stage">
+          <img id="carousel-image" class="carousel__image" alt="" />
+        </div>
+        <button
+          type="button"
+          class="carousel__nav carousel__nav--next"
+          id="carousel-next"
+          aria-label="Next photo"
+        >
+          ›
+        </button>
+        <p id="carousel-counter" class="carousel__counter" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <script src="scripts/app.js" defer></script>
+  </body>
+</html>

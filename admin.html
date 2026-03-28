@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin — Garden blog</title>
+    <link rel="stylesheet" href="styles/main.css" />
+    <link rel="stylesheet" href="styles/admin.css" />
+  </head>
+  <body class="admin-body">
+    <a class="skip-link" href="#admin-main">Skip to content</a>
+    <header class="admin-header site-header">
+      <div class="site-inner">
+        <h1 class="site-title">Garden blog — Admin</h1>
+        <p class="site-tagline">
+          Edit posts and save to disk (local). Run a static server from the repo root. Use Chrome or Edge for
+          “choose folder” saves.
+        </p>
+        <p class="admin-meta">
+          <a href="index.html">View site</a>
+        </p>
+      </div>
+    </header>
+
+    <main id="admin-main" class="admin-main site-main">
+      <div class="site-inner admin-inner">
+        <section class="admin-toolbar" aria-label="Load and save">
+          <div class="admin-toolbar__row">
+            <button type="button" class="admin-btn admin-btn--primary" id="btn-pick-folder">
+              Choose project folder…
+            </button>
+            <button type="button" class="admin-btn" id="btn-load-server">Load posts from server</button>
+            <span id="folder-status" class="admin-status" role="status"></span>
+          </div>
+          <p class="admin-help">
+            Pick the repository root (the folder that contains <code>data</code> and <code>assets</code>). Saving
+            writes <code>data/posts.json</code> and copies new images under <code>assets/posts/</code>.
+          </p>
+        </section>
+
+        <section class="admin-actions">
+          <button type="button" class="admin-btn admin-btn--primary" id="btn-add-post">Add post</button>
+          <button type="button" class="admin-btn" id="btn-save">Save everything</button>
+        </section>
+
+        <p id="admin-message" class="admin-message" role="status" aria-live="polite"></p>
+
+        <div id="posts-editor" class="posts-editor"></div>
+      </div>
+    </main>
+
+    <script src="scripts/admin.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "garden-blog",
+  "version": "1.0.0",
+  "description": "A small, framework-free garden journal with a photo grid and carousel, hosted on GitHub Pages.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . --listen 8080",
+    "dev": "npx --yes serve . --listen 8080",
+    "admin": "npx --yes serve . --listen 8080 && open http://localhost:8080/admin.html"
+  }
+}
