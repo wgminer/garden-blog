@@ -19,6 +19,12 @@
   color: var(--color-accent);
 }
 
+.admin-meta__sep {
+  margin: 0 0.35em;
+  color: var(--color-muted);
+  user-select: none;
+}
+
 .admin-inner {
   max-width: 48rem;
 }
