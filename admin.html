@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Admin — Garden blog</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B1%3C/text%3E%3C/svg%3E"
+    />
     <link rel="stylesheet" href="styles/main.css" />
     <link rel="stylesheet" href="styles/admin.css" />
   </head>
@@ -13,8 +17,8 @@
       <div class="site-inner">
         <h1 class="site-title">Garden blog — Admin</h1>
         <p class="site-tagline">
-          Edit posts and save to disk (local). Run a static server from the repo root. Use Chrome or Edge for
-          “choose folder” saves.
+          Run <code class="admin-inline-code">npm start</code> from the repo root. Saves write into <code class="admin-inline-code">data/</code> and
+          <code class="admin-inline-code">assets/</code> so you can commit and push to GitHub Pages.
         </p>
         <p class="admin-meta">
           <a href="index.html">View site</a>
@@ -24,30 +28,57 @@
 
     <main id="admin-main" class="admin-main site-main">
       <div class="site-inner admin-inner">
-        <section class="admin-toolbar" aria-label="Load and save">
-          <div class="admin-toolbar__row">
-            <button type="button" class="admin-btn admin-btn--primary" id="btn-pick-folder">
-              Choose project folder…
-            </button>
-            <button type="button" class="admin-btn" id="btn-load-server">Load posts from server</button>
-            <span id="folder-status" class="admin-status" role="status"></span>
-          </div>
-          <p class="admin-help">
-            Pick the repository root (the folder that contains <code>data</code> and <code>assets</code>). Saving
-            writes <code>data/posts.json</code> and copies new images under <code>assets/posts/</code>.
-          </p>
-        </section>
-
-        <section class="admin-actions">
-          <button type="button" class="admin-btn admin-btn--primary" id="btn-add-post">Add post</button>
-          <button type="button" class="admin-btn" id="btn-save">Save everything</button>
+        <section class="admin-actions" aria-label="Post actions">
+          <button type="button" class="admin-btn admin-btn--primary" id="btn-add-post">Add new post</button>
         </section>
 
         <p id="admin-message" class="admin-message" role="status" aria-live="polite"></p>
 
-        <div id="posts-editor" class="posts-editor"></div>
+        <div id="posts-list" class="admin-post-list" aria-label="Posts"></div>
       </div>
     </main>
+
+    <div id="post-modal" class="admin-modal" hidden aria-hidden="true">
+      <div class="admin-modal__backdrop" data-modal-close tabindex="-1" aria-hidden="true"></div>
+      <div
+        class="admin-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <h2 id="modal-title" class="admin-modal__heading">New post</h2>
+        <div class="admin-field">
+          <label for="field-title">Title</label>
+          <input type="text" id="field-title" autocomplete="off" />
+        </div>
+        <div class="admin-field">
+          <label for="field-slug">Post URL (slug)</label>
+          <input type="text" id="field-slug" autocomplete="off" />
+          <p class="admin-field__hint">Letters, numbers, and hyphens. Used in <code>assets/posts/…</code> and in the link to this post on the site.</p>
+        </div>
+        <div class="admin-field">
+          <label for="field-date">Date</label>
+          <input type="date" id="field-date" />
+        </div>
+        <div class="admin-field">
+          <label for="field-body">Body</label>
+          <textarea id="field-body" rows="8"></textarea>
+          <p class="admin-field__hint">One paragraph per line (blank line = blank line).</p>
+        </div>
+        <div class="admin-field">
+          <label>Images</label>
+          <ul id="modal-images-list" class="admin-images__list"></ul>
+          <div class="admin-modal__upload">
+            <label for="modal-file-input" class="admin-modal__upload-label">Upload images</label>
+            <input type="file" id="modal-file-input" accept="image/*" multiple />
+          </div>
+        </div>
+        <div class="admin-modal__footer">
+          <button type="button" class="admin-btn" id="btn-modal-cancel">Cancel</button>
+          <button type="button" class="admin-btn admin-btn--primary" id="btn-modal-apply">Save post</button>
+        </div>
+      </div>
+    </div>
 
     <script src="scripts/admin.js" defer></script>
   </body>

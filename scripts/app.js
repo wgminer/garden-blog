@@ -1,6 +1,21 @@
 (function () {
   "use strict";
 
+  function isLocalDevHost() {
+    var h = window.location.hostname;
+    return (
+      h === "localhost" ||
+      h === "127.0.0.1" ||
+      h === "::1" ||
+      h === "[::1]"
+    );
+  }
+
+  var headerAdminLink = document.getElementById("header-admin-link");
+  if (headerAdminLink && isLocalDevHost()) {
+    headerAdminLink.hidden = false;
+  }
+
   var postsStatus = document.getElementById("posts-status");
   var postsList = document.getElementById("posts-list");
   var carouselEl = document.getElementById("carousel");
@@ -21,6 +36,15 @@
     });
   }
 
+  function sanitizeSlug(s) {
+    var t = String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return t || "post";
+  }
+
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, "&amp;")
@@ -29,14 +53,23 @@
       .replace(/"/g, "&quot;");
   }
 
+  if (typeof marked !== "undefined" && marked.setOptions) {
+    marked.setOptions({ gfm: true, breaks: true });
+  }
+
   function renderBody(body) {
     if (!body) return "";
-    var parts = String(body).split("\n");
-    return parts
-      .map(function (line) {
-        return "<p>" + escapeHtml(line) + "</p>";
-      })
-      .join("");
+    var raw = String(body);
+    if (typeof marked === "undefined" || typeof DOMPurify === "undefined") {
+      return raw
+        .split("\n")
+        .map(function (line) {
+          return "<p>" + escapeHtml(line) + "</p>";
+        })
+        .join("");
+    }
+    var html = marked.parse(raw);
+    return DOMPurify.sanitize(html);
   }
 
   function openCarousel(postImages, startIndex, triggerEl) {
@@ -155,6 +188,7 @@
     sorted.forEach(function (post) {
       var article = document.createElement("article");
       article.className = "post";
+      article.id = "post-" + sanitizeSlug(post.slug);
 
       var header = document.createElement("header");
       header.className = "post__header";
@@ -174,6 +208,16 @@
       var grid = document.createElement("ul");
       grid.className = "photo-grid";
       var images = Array.isArray(post.images) ? post.images : [];
+      var n = images.length;
+      if (n) {
+        grid.setAttribute("data-count", String(n));
+        if (n >= 4) {
+          grid.classList.add("photo-grid--cols-2");
+        }
+        if (n >= 5 && n % 2 === 1) {
+          grid.classList.add("photo-grid--tail-full");
+        }
+      }
 
       images.forEach(function (src, idx) {
         var li = document.createElement("li");

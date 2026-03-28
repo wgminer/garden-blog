@@ -1,10 +1,12 @@
 [
   {
-    "id": "post-1774661619552",
-    "slug": "first",
-    "title": "First",
+    "id": "post-1774734094945",
+    "slug": "2026-garden-kickoff",
+    "title": "2026 Garden Kickoff",
     "date": "2026-03-28",
-    "body": "I'm starting a blog to document my gardening endeavors. It's Spring 2026. This is the first post. More to come!",
-    "images": []
+    "body": "Alright, here's the plan everyone. We'll add to it as we go, but you've got to start somewhere.\n\nPlans are useless, planning is essential.\n\n# Vision\n\nThis summer, we want our garden to feel calm, open, and enjoyable.\n\n- A simple, peaceful, and welcoming garden\n- A spot where we can sit outside and watch airplanes fly overhead\n- A good open view of the sky\n- Heirloom tomatoes\n- Herbs\n- A couple of flowers to make the garden feel special\n- Flowers that feel a little different, maybe like foxgloves\n- A trumpet flower on the trellis\n- Start 1 or 2 more bonsai\n\nOverall, we want the garden to be a place to relax, look up, and enjoy a mix of food, flowers, and a few longer-term projects.",
+    "images": [
+      "assets/posts/test/IMG_5211.jpeg"
+    ]
   }
 ]

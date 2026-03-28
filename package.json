@@ -4,8 +4,15 @@
   "description": "A small, framework-free garden journal with a photo grid and carousel, hosted on GitHub Pages.",
   "private": true,
   "scripts": {
-    "start": "npx --yes serve . --listen 8080",
-    "dev": "npx --yes serve . --listen 8080",
-    "admin": "npx --yes serve . --listen 8080 && open http://localhost:8080/admin.html"
+    "start": "node server/dev-server.js",
+    "dev": "node server/dev-server.js",
+    "admin": "node server/dev-server.js",
+    "save": "git add -A && (git diff --cached --quiet || git commit -m \"Update site\") && git push"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.3",
+    "express": "^4.21.2",
+    "marked": "^17.0.5",
+    "multer": "^1.4.5-lts.1"
   }
 }

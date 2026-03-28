@@ -1,39 +1,46 @@
 (function () {
   "use strict";
 
-  var postsEditor = document.getElementById("posts-editor");
-  var btnPickFolder = document.getElementById("btn-pick-folder");
-  var btnLoadServer = document.getElementById("btn-load-server");
+  var postsListEl = document.getElementById("posts-list");
   var btnAddPost = document.getElementById("btn-add-post");
-  var btnSave = document.getElementById("btn-save");
-  var folderStatus = document.getElementById("folder-status");
   var adminMessage = document.getElementById("admin-message");
 
-  /** @type {FileSystemDirectoryHandle | null} */
-  var rootHandle = null;
+  var postModal = document.getElementById("post-modal");
+  var modalTitle = document.getElementById("modal-title");
+  var fieldTitle = document.getElementById("field-title");
+  var fieldSlug = document.getElementById("field-slug");
+  var fieldDate = document.getElementById("field-date");
+  var fieldBody = document.getElementById("field-body");
+  var modalImagesList = document.getElementById("modal-images-list");
+  var modalFileInput = document.getElementById("modal-file-input");
+  var btnModalCancel = document.getElementById("btn-modal-cancel");
+  var btnModalApply = document.getElementById("btn-modal-apply");
 
-  /** Post shape matching data/posts.json */
+  /** @type {Array} */
   var posts = [];
 
-  /** Map of repo-relative path -> File (new or replaced uploads) */
+  /** Map of repo-relative path -> File (pending upload) */
   var pendingFiles = new Map();
 
-  function hasFSAccess() {
-    return typeof window.showDirectoryPicker === "function";
-  }
+  /** True when GET /api/posts succeeded (Express dev server); false if only static data/posts.json loaded */
+  var canUseSaveApi = false;
+
+  /** Draft while modal is open */
+  var modalDraft = null;
+
+  /** True when modal is adding a new post */
+  var modalIsNew = false;
+
+  /** Index in posts when editing; -1 when adding */
+  var modalEditIndex = -1;
+
+  /** For new posts: slug tracks title until the user edits the slug field */
+  var slugManuallyEdited = false;
+
+  var lastFocusBeforeModal = null;
 
   function setMessage(text) {
     adminMessage.textContent = text || "";
-  }
-
-  function setFolderLabel() {
-    if (rootHandle && rootHandle.name) {
-      folderStatus.textContent = "Folder: " + rootHandle.name + " (save writes here)";
-    } else if (hasFSAccess()) {
-      folderStatus.textContent = "No folder chosen — save will offer downloads.";
-    } else {
-      folderStatus.textContent = "This browser cannot pick a folder — save will download files.";
-    }
   }
 
   function sanitizeSlug(s) {
@@ -81,251 +88,135 @@
     return arr.map(normalizePost);
   }
 
-  async function readPostsFromRoot(root) {
-    var dataDir = await root.getDirectoryHandle("data");
-    var fh = await dataDir.getFileHandle("posts.json");
-    var file = await fh.getFile();
-    var text = await file.text();
-    return JSON.parse(text);
-  }
-
-  async function writeTextFile(root, pathParts, content) {
-    var dir = root;
-    for (var i = 0; i < pathParts.length - 1; i++) {
-      dir = await dir.getDirectoryHandle(pathParts[i], { create: true });
-    }
-    var fh = await dir.getFileHandle(pathParts[pathParts.length - 1], { create: true });
-    var w = await fh.createWritable();
-    await w.write(content);
-    await w.close();
-  }
-
-  async function writeBinaryFile(root, relPath, file) {
-    var parts = relPath.split("/").filter(Boolean);
-    if (parts.length < 2) throw new Error("Invalid path: " + relPath);
-    var dir = root;
-    for (var j = 0; j < parts.length - 1; j++) {
-      dir = await dir.getDirectoryHandle(parts[j], { create: true });
-    }
-    var fh = await dir.getFileHandle(parts[parts.length - 1], { create: true });
-    var w = await fh.createWritable();
-    await w.write(await file.arrayBuffer());
-    await w.close();
-  }
-
-  async function verifyWritable(root) {
-    if (root.requestPermission) {
-      var st = await root.requestPermission({ mode: "readwrite" });
-      if (st !== "granted") throw new Error("Folder permission not granted.");
-    }
-  }
-
-  function downloadBlob(filename, blob) {
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-  }
-
-  function serializePosts() {
-    return JSON.stringify(posts, null, 2) + "\n";
-  }
-
-  async function saveToDisk() {
-    var json = serializePosts();
-    await verifyWritable(rootHandle);
-
-    await writeTextFile(rootHandle, ["data", "posts.json"], json);
-
-    var written = 0;
-    var paths = Array.from(pendingFiles.keys());
-    for (var i = 0; i < paths.length; i++) {
-      var rel = paths[i];
-      var file = pendingFiles.get(rel);
-      await writeBinaryFile(rootHandle, rel, file);
-      written += 1;
-    }
-    pendingFiles.clear();
-    setMessage("Saved data/posts.json" + (written ? " and " + written + " image(s)." : "."));
-  }
-
-  async function saveViaDownload() {
-    downloadBlob("posts.json", new Blob([serializePosts()], { type: "application/json" }));
-
-    var idx = 0;
-    pendingFiles.forEach(function (file, rel) {
-      idx += 1;
-      var safeName = rel.replace(/\//g, "__");
-      downloadBlob(safeName, file);
-    });
-
-    if (pendingFiles.size === 0) {
-      setMessage("Downloaded posts.json. Place it in data/posts.json in your project.");
-    } else {
-      setMessage(
-        "Downloaded posts.json and " +
-          pendingFiles.size +
-          " image file(s). Rename images from assets__posts__slug__file.png to assets/posts/slug/file.png (see README)."
-      );
-    }
-    pendingFiles.clear();
-    render();
-  }
-
-  async function onSave() {
-    syncFromForm();
-    setMessage("");
-    try {
-      if (!posts.length) {
-        setMessage("Add at least one post before saving.");
-        return;
-      }
-      for (var i = 0; i < posts.length; i++) {
-        if (!posts[i].slug) {
-          setMessage("Each post needs a slug (used for assets/posts/your-slug/).");
-          return;
-        }
-      }
-      if (rootHandle) {
-        await saveToDisk();
-      } else {
-        await saveViaDownload();
-      }
-    } catch (e) {
-      console.error(e);
-      setMessage("Save failed: " + (e.message || String(e)));
-    }
-  }
-
-  async function onPickFolder() {
-    setMessage("");
-    if (!hasFSAccess()) {
-      setMessage("Use Chrome or Edge to pick a folder, or save to download files.");
-      return;
-    }
-    try {
-      var picked = await window.showDirectoryPicker({ mode: "readwrite" });
-      rootHandle = picked;
-      setFolderLabel();
-      var data = await readPostsFromRoot(rootHandle);
-      posts = normalizePosts(data);
-      pendingFiles.clear();
-      setMessage("Loaded posts from disk.");
-      render();
-    } catch (e) {
-      if (e && e.name === "AbortError") return;
-      console.error(e);
-      rootHandle = null;
-      setFolderLabel();
-      setMessage("Could not open folder: " + (e.message || String(e)));
-    }
-  }
-
-  function onLoadServer() {
-    setMessage("");
-    fetch("data/posts.json")
-      .then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
+  function sortByDateDesc(arr) {
+    return arr
+      .map(function (p, i) {
+        return { p: p, i: i };
       })
-      .then(function (data) {
-        posts = normalizePosts(data);
-        pendingFiles.clear();
-        setMessage("Loaded posts from server.");
-        render();
-      })
-      .catch(function (e) {
-        setMessage("Could not load data/posts.json — use Choose folder or run from repo root.");
-        console.error(e);
+      .sort(function (a, b) {
+        return (b.p.date || "").localeCompare(a.p.date || "");
       });
   }
 
-  function addPost() {
-    posts.unshift(
-      normalizePost({
-        id: "post-" + Date.now(),
-        slug: "",
-        title: "",
-        date: new Date().toISOString().slice(0, 10),
-        body: "",
-        images: [],
-      })
-    );
-    render();
-  }
-
-  function removePost(index) {
-    var p = posts[index];
-    if (!p) return;
-    if (p.images) {
-      p.images.forEach(function (rel) {
-        pendingFiles.delete(rel);
+  function formatDateLabel(iso) {
+    if (!iso) return "";
+    try {
+      var d = new Date(iso + "T12:00:00");
+      return d.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
       });
+    } catch (e) {
+      return iso;
     }
-    posts.splice(index, 1);
-    render();
   }
 
-  function syncFromForm() {
-    var cards = postsEditor.querySelectorAll(".admin-post[data-index]");
-    cards.forEach(function (card) {
-      var idx = parseInt(card.getAttribute("data-index"), 10);
-      if (isNaN(idx) || !posts[idx]) return;
-      var title = card.querySelector("[data-field=title]");
-      var slug = card.querySelector("[data-field=slug]");
-      var date = card.querySelector("[data-field=date]");
-      var body = card.querySelector("[data-field=body]");
-      if (title) posts[idx].title = title.value;
-      if (slug) {
-        var nextSlug = sanitizeSlug(slug.value);
-        posts[idx].slug = nextSlug;
-      }
-      if (date) posts[idx].date = date.value;
-      if (body) posts[idx].body = body.value;
+  function viewSiteHref(slug) {
+    return "index.html#post-" + sanitizeSlug(slug);
+  }
+
+  function syncDraftFromForm() {
+    if (!modalDraft) return;
+    modalDraft.title = fieldTitle.value;
+    modalDraft.slug = sanitizeSlug(fieldSlug.value);
+    fieldSlug.value = modalDraft.slug;
+    modalDraft.date = fieldDate.value;
+    modalDraft.body = fieldBody.value;
+  }
+
+  function fillFormFromDraft() {
+    if (!modalDraft) return;
+    fieldTitle.value = modalDraft.title || "";
+    fieldSlug.value = modalDraft.slug || "";
+    fieldDate.value = modalDraft.date || "";
+    fieldBody.value = modalDraft.body || "";
+  }
+
+  function renderModalImages() {
+    modalImagesList.innerHTML = "";
+    if (!modalDraft) return;
+    var imgs = modalDraft.images || [];
+    imgs.forEach(function (rel, imgIdx) {
+      var li = document.createElement("li");
+      li.className = "admin-images__row";
+      var span = document.createElement("span");
+      span.className =
+        "admin-images__path" + (pendingFiles.has(rel) ? " admin-images__path--pending" : "");
+      span.textContent = rel + (pendingFiles.has(rel) ? " (pending save)" : "");
+
+      var up = document.createElement("button");
+      up.type = "button";
+      up.className = "admin-icon-btn";
+      up.textContent = "↑";
+      up.setAttribute("aria-label", "Move image up");
+      up.disabled = imgIdx === 0;
+      up.addEventListener("click", function () {
+        moveModalImage(imgIdx, -1);
+      });
+
+      var down = document.createElement("button");
+      down.type = "button";
+      down.className = "admin-icon-btn";
+      down.textContent = "↓";
+      down.setAttribute("aria-label", "Move image down");
+      down.disabled = imgIdx === imgs.length - 1;
+      down.addEventListener("click", function () {
+        moveModalImage(imgIdx, 1);
+      });
+
+      var rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "admin-icon-btn admin-danger";
+      rm.textContent = "×";
+      rm.setAttribute("aria-label", "Remove image");
+      rm.addEventListener("click", function () {
+        removeModalImage(rel);
+      });
+
+      li.appendChild(span);
+      li.appendChild(up);
+      li.appendChild(down);
+      li.appendChild(rm);
+      modalImagesList.appendChild(li);
     });
   }
 
-  function moveImage(postIndex, imageIndex, delta) {
-    var p = posts[postIndex];
-    if (!p || !p.images) return;
+  function moveModalImage(imageIndex, delta) {
+    if (!modalDraft || !modalDraft.images) return;
     var j = imageIndex + delta;
-    if (j < 0 || j >= p.images.length) return;
-    var tmp = p.images[j];
-    p.images[j] = p.images[imageIndex];
-    p.images[imageIndex] = tmp;
-    render();
+    if (j < 0 || j >= modalDraft.images.length) return;
+    var tmp = modalDraft.images[j];
+    modalDraft.images[j] = modalDraft.images[imageIndex];
+    modalDraft.images[imageIndex] = tmp;
+    renderModalImages();
   }
 
-  function removeImage(postIndex, relPath) {
-    var p = posts[postIndex];
-    if (!p || !p.images) return;
-    p.images = p.images.filter(function (x) {
+  function removeModalImage(relPath) {
+    if (!modalDraft) return;
+    modalDraft.images = (modalDraft.images || []).filter(function (x) {
       return x !== relPath;
     });
     pendingFiles.delete(relPath);
-    render();
+    renderModalImages();
   }
 
-  function handleFilesChosen(postIndex, fileList) {
-    syncFromForm();
-    var p = posts[postIndex];
-    if (!p) return;
-    var slug = sanitizeSlug(p.slug);
-    p.slug = slug;
+  function handleModalFiles(fileList) {
+    syncDraftFromForm();
+    var slug = sanitizeSlug(fieldSlug.value);
     if (!slug) {
-      setMessage("Set a slug before adding images.");
-      render();
+      slug = sanitizeSlug(fieldTitle.value);
+    }
+    if (!slug) {
+      setMessage("Set a post title or URL (slug) before adding images.");
       return;
     }
+    modalDraft.slug = slug;
+    fieldSlug.value = slug;
 
     var used = new Set();
-    p.images.forEach(function (rel) {
-      var base = rel.split("/").pop();
-      used.add(base);
+    modalDraft.images.forEach(function (rel) {
+      used.add(rel.split("/").pop());
     });
 
     var files = Array.prototype.slice.call(fileList);
@@ -334,195 +225,371 @@
       var name = uniqueFilename(raw, used);
       used.add(name);
       var rel = "assets/posts/" + slug + "/" + name;
-      p.images.push(rel);
+      modalDraft.images.push(rel);
       pendingFiles.set(rel, files[i]);
     }
     setMessage("");
-    render();
+    renderModalImages();
   }
 
-  function render() {
-    syncFromForm();
-    postsEditor.innerHTML = "";
+  function showModal() {
+    lastFocusBeforeModal = document.activeElement;
+    postModal.hidden = false;
+    postModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("admin-modal-open");
+    window.setTimeout(function () {
+      fieldTitle.focus();
+    }, 0);
+  }
 
-    if (!posts.length) {
-      var empty = document.createElement("p");
-      empty.className = "admin-help";
-      empty.textContent = "No posts yet. Click “Add post” or load from disk / server.";
-      postsEditor.appendChild(empty);
+  function closeModal() {
+    postModal.hidden = true;
+    postModal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("admin-modal-open");
+    modalDraft = null;
+    modalIsNew = false;
+    modalEditIndex = -1;
+    modalFileInput.value = "";
+    if (lastFocusBeforeModal && typeof lastFocusBeforeModal.focus === "function") {
+      lastFocusBeforeModal.focus();
+    }
+  }
+
+  function openNewModal() {
+    setMessage("");
+    modalIsNew = true;
+    slugManuallyEdited = false;
+    modalEditIndex = -1;
+    modalDraft = {
+      id: "post-" + Date.now(),
+      slug: "",
+      title: "",
+      date: new Date().toISOString().slice(0, 10),
+      body: "",
+      images: [],
+    };
+    modalTitle.textContent = "New post";
+    fillFormFromDraft();
+    renderModalImages();
+    showModal();
+  }
+
+  function openEditModal(index) {
+    setMessage("");
+    var p = posts[index];
+    if (!p) return;
+    modalIsNew = false;
+    modalEditIndex = index;
+    modalDraft = {
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      date: p.date,
+      body: p.body,
+      images: (p.images || []).slice(),
+    };
+    slugManuallyEdited =
+      sanitizeSlug(p.slug) !== sanitizeSlug(p.title || "");
+    modalTitle.textContent = "Edit post";
+    fillFormFromDraft();
+    renderModalImages();
+    showModal();
+  }
+
+  async function applyModal() {
+    if (!modalDraft) return;
+    syncDraftFromForm();
+    var normalized = normalizePost(modalDraft);
+    if (!normalized.slug) {
+      setMessage("Post URL (slug) is required.");
+      fieldSlug.focus();
       return;
     }
 
-    for (var i = 0; i < posts.length; i++) {
-      (function (postIndex) {
-        var p = posts[postIndex];
-        var card = document.createElement("section");
-        card.className = "admin-post";
-        card.setAttribute("data-index", String(postIndex));
+    var nextPosts = posts.slice();
+    if (modalIsNew) {
+      nextPosts.unshift(normalized);
+    } else if (modalEditIndex >= 0) {
+      nextPosts[modalEditIndex] = normalized;
+    }
 
-        var h = document.createElement("h2");
-        h.className = "admin-post__title";
-        h.textContent = p.title.trim() || "Untitled post";
+    if (!canUseSaveApi) {
+      posts = nextPosts;
+      closeModal();
+      setMessage("");
+      renderPostList();
+      return;
+    }
 
-        function field(label, hint, inputEl) {
-          var wrap = document.createElement("div");
-          wrap.className = "admin-field";
-          var lab = document.createElement("label");
-          lab.textContent = label;
-          wrap.appendChild(lab);
-          wrap.appendChild(inputEl);
-          if (hint) {
-            var hi = document.createElement("p");
-            hi.className = "admin-field__hint";
-            hi.textContent = hint;
-            wrap.appendChild(hi);
-          }
-          return wrap;
-        }
-
-        var titleIn = document.createElement("input");
-        titleIn.type = "text";
-        titleIn.setAttribute("data-field", "title");
-        titleIn.value = p.title;
-        titleIn.addEventListener("input", function () {
-          posts[postIndex].title = titleIn.value;
-          h.textContent = titleIn.value.trim() || "Untitled post";
-        });
-
-        var slugIn = document.createElement("input");
-        slugIn.type = "text";
-        slugIn.setAttribute("data-field", "slug");
-        slugIn.value = p.slug;
-        slugIn.addEventListener("change", function () {
-          posts[postIndex].slug = sanitizeSlug(slugIn.value);
-          slugIn.value = posts[postIndex].slug;
-        });
-
-        var dateIn = document.createElement("input");
-        dateIn.type = "date";
-        dateIn.setAttribute("data-field", "date");
-        dateIn.value = p.date;
-
-        var bodyIn = document.createElement("textarea");
-        bodyIn.setAttribute("data-field", "body");
-        bodyIn.value = p.body;
-
-        var imagesLabel = document.createElement("div");
-        imagesLabel.className = "admin-field";
-        var labImg = document.createElement("label");
-        labImg.textContent = "Images";
-        imagesLabel.appendChild(labImg);
-
-        var list = document.createElement("ul");
-        list.className = "admin-images__list";
-        (p.images || []).forEach(function (rel, imgIdx) {
-          var li = document.createElement("li");
-          li.className = "admin-images__row";
-          var span = document.createElement("span");
-          span.className =
-            "admin-images__path" + (pendingFiles.has(rel) ? " admin-images__path--pending" : "");
-          span.textContent = rel + (pendingFiles.has(rel) ? " (pending save)" : "");
-
-          var up = document.createElement("button");
-          up.type = "button";
-          up.className = "admin-icon-btn";
-          up.textContent = "↑";
-          up.setAttribute("aria-label", "Move image up");
-          up.disabled = imgIdx === 0;
-          up.addEventListener("click", function () {
-            moveImage(postIndex, imgIdx, -1);
-          });
-
-          var down = document.createElement("button");
-          down.type = "button";
-          down.className = "admin-icon-btn";
-          down.textContent = "↓";
-          down.setAttribute("aria-label", "Move image down");
-          down.disabled = imgIdx === p.images.length - 1;
-          down.addEventListener("click", function () {
-            moveImage(postIndex, imgIdx, 1);
-          });
-
-          var rm = document.createElement("button");
-          rm.type = "button";
-          rm.className = "admin-icon-btn admin-danger";
-          rm.textContent = "×";
-          rm.setAttribute("aria-label", "Remove image");
-          rm.addEventListener("click", function () {
-            removeImage(postIndex, rel);
-          });
-
-          li.appendChild(span);
-          li.appendChild(up);
-          li.appendChild(down);
-          li.appendChild(rm);
-          li.appendChild(document.createTextNode(" "));
-          list.appendChild(li);
-        });
-        imagesLabel.appendChild(list);
-
-        var fileIn = document.createElement("input");
-        fileIn.type = "file";
-        fileIn.accept = "image/*";
-        fileIn.multiple = true;
-        fileIn.className = "admin-field";
-        fileIn.addEventListener("change", function () {
-          if (fileIn.files && fileIn.files.length) {
-            handleFilesChosen(postIndex, fileIn.files);
-            fileIn.value = "";
-          }
-        });
-
-        var pickWrap = document.createElement("div");
-        pickWrap.className = "admin-field";
-        var pickLab = document.createElement("label");
-        pickLab.textContent = "Upload images from your computer";
-        pickLab.setAttribute("for", "file-" + postIndex);
-        pickLab.style.display = "block";
-        pickLab.style.marginBottom = "var(--space-xs)";
-        fileIn.id = "file-" + postIndex;
-        pickWrap.appendChild(pickLab);
-        pickWrap.appendChild(fileIn);
-
-        var actions = document.createElement("div");
-        actions.className = "admin-row-actions";
-        var del = document.createElement("button");
-        del.type = "button";
-        del.className = "admin-btn admin-danger";
-        del.textContent = "Delete post";
-        del.addEventListener("click", function () {
-          if (window.confirm("Delete this post?")) removePost(postIndex);
-        });
-        actions.appendChild(del);
-
-        card.appendChild(h);
-        card.appendChild(field("Title", null, titleIn));
-        card.appendChild(
-          field(
-            "Slug",
-            "Folder under assets/posts/ (letters, numbers, hyphens). If you change slug after adding images, update image paths manually.",
-            slugIn
-          )
-        );
-        card.appendChild(field("Date", null, dateIn));
-        card.appendChild(field("Body", "One paragraph per line (blank line = blank line).", bodyIn));
-        card.appendChild(imagesLabel);
-        card.appendChild(pickWrap);
-        card.appendChild(actions);
-
-        postsEditor.appendChild(card);
-      })(i);
+    btnModalApply.disabled = true;
+    btnModalCancel.disabled = true;
+    setMessage("Saving…");
+    try {
+      var ok = await persistPostsToDisk(nextPosts);
+      if (ok) {
+        posts = nextPosts;
+        closeModal();
+        renderPostList();
+      }
+    } finally {
+      btnModalApply.disabled = false;
+      btnModalCancel.disabled = false;
     }
   }
 
-  btnPickFolder.addEventListener("click", onPickFolder);
-  btnLoadServer.addEventListener("click", onLoadServer);
-  btnAddPost.addEventListener("click", function () {
-    syncFromForm();
-    addPost();
-  });
-  btnSave.addEventListener("click", onSave);
+  async function removePost(index) {
+    var p = posts[index];
+    if (!p) return;
+    var backup = posts.slice();
+    if (p.images) {
+      p.images.forEach(function (rel) {
+        pendingFiles.delete(rel);
+      });
+    }
+    posts.splice(index, 1);
+    renderPostList();
 
-  setFolderLabel();
-  onLoadServer();
+    if (!canUseSaveApi) return;
+
+    setMessage("Saving…");
+    var ok = await persistPostsToDisk(posts);
+    if (!ok) {
+      posts = backup;
+      renderPostList();
+    }
+  }
+
+  function renderPostList() {
+    postsListEl.innerHTML = "";
+    if (!posts.length) {
+      var empty = document.createElement("p");
+      empty.className = "admin-help";
+      empty.textContent = "No posts yet. Click “Add new post” to plant one.";
+      postsListEl.appendChild(empty);
+      return;
+    }
+
+    var ordered = sortByDateDesc(posts);
+    ordered.forEach(function (item) {
+      var p = item.p;
+      var idx = item.i;
+      var row = document.createElement("article");
+      row.className = "admin-post-row";
+
+      var main = document.createElement("div");
+      main.className = "admin-post-row__main";
+      var h = document.createElement("h2");
+      h.className = "admin-post-row__title";
+      h.textContent = p.title.trim() || "Untitled post";
+      var meta = document.createElement("p");
+      meta.className = "admin-post-row__meta";
+      meta.textContent = formatDateLabel(p.date) + " · /" + sanitizeSlug(p.slug);
+      main.appendChild(h);
+      main.appendChild(meta);
+
+      var actions = document.createElement("div");
+      actions.className = "admin-post-row__actions";
+
+      var view = document.createElement("a");
+      view.className = "admin-btn admin-btn--link";
+      view.href = viewSiteHref(p.slug);
+      view.textContent = "View on site";
+
+      var edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "admin-btn";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", function () {
+        openEditModal(idx);
+      });
+
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "admin-btn admin-danger";
+      del.textContent = "Delete";
+      del.addEventListener("click", function () {
+        if (window.confirm("Delete this post?")) removePost(idx);
+      });
+
+      actions.appendChild(view);
+      actions.appendChild(edit);
+      actions.appendChild(del);
+
+      row.appendChild(main);
+      row.appendChild(actions);
+      postsListEl.appendChild(row);
+    });
+  }
+
+  function serializePostsArray(arr) {
+    return JSON.stringify(arr, null, 2) + "\n";
+  }
+
+  /**
+   * Writes postsToWrite and pending image uploads to disk via POST /api/save.
+   * @param {Array} postsToWrite
+   * @returns {Promise<boolean>}
+   */
+  async function persistPostsToDisk(postsToWrite) {
+    setMessage("");
+    try {
+      if (!canUseSaveApi) {
+        setMessage(
+          "Saving needs the dev server. Run npm start from the repo root, then open " +
+            adminUrlHint() +
+            " (or the URL printed in the terminal) and reload this page."
+        );
+        return false;
+      }
+      for (var i = 0; i < postsToWrite.length; i++) {
+        if (!postsToWrite[i].slug) {
+          setMessage("Each post needs a URL (slug).");
+          return false;
+        }
+      }
+
+      var fd = new FormData();
+      fd.append("posts", serializePostsArray(postsToWrite));
+      var pathList = [];
+      pendingFiles.forEach(function (file, rel) {
+        pathList.push(rel);
+      });
+      fd.append("paths", JSON.stringify(pathList));
+      pathList.forEach(function (rel) {
+        var file = pendingFiles.get(rel);
+        if (file) fd.append("images", file);
+      });
+
+      var res = await fetch("/api/save", {
+        method: "POST",
+        body: fd,
+      });
+      var data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok) {
+        setMessage("Save failed: " + (data.error || res.statusText));
+        return false;
+      }
+      pendingFiles.clear();
+      setMessage(
+        "Saved to data/posts.json" + (pathList.length ? " and " + pathList.length + " image(s)." : ".")
+      );
+      return true;
+    } catch (e) {
+      console.error(e);
+      setMessage("Save failed: " + (e.message || String(e)));
+      return false;
+    }
+  }
+
+  function adminUrlHint() {
+    try {
+      if (window.location.protocol === "file:") {
+        return "http://127.0.0.1:8080/admin.html";
+      }
+      return window.location.origin + window.location.pathname.replace(/[^/]*$/, "admin.html");
+    } catch (e) {
+      return "http://127.0.0.1:8080/admin.html";
+    }
+  }
+
+  async function checkSaveApiAvailable() {
+    try {
+      var h = await fetch("/api/health");
+      return h.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function loadPosts() {
+    setMessage("Loading…");
+    canUseSaveApi = false;
+
+    var loaded = false;
+
+    try {
+      var resData = await fetch("data/posts.json");
+      if (resData.ok) {
+        posts = normalizePosts(await resData.json());
+        loaded = true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (!loaded) {
+      try {
+        var resApi = await fetch("/api/posts");
+        if (resApi.ok) {
+          posts = normalizePosts(await resApi.json());
+          loaded = true;
+        }
+      } catch (e2) {
+        console.error(e2);
+      }
+    }
+
+    if (!loaded) {
+      posts = [];
+      setMessage(
+        "Could not load posts. From the repo root run npm start and open " +
+          adminUrlHint() +
+          ". If you already use a static server, ensure data/posts.json is served. Opening admin.html as a file (file://) will not work."
+      );
+      renderPostList();
+      return;
+    }
+
+    canUseSaveApi = await checkSaveApiAvailable();
+
+    if (canUseSaveApi) {
+      setMessage("");
+    } else {
+      setMessage(
+        "Posts loaded. Saving to disk needs the dev server: run npm start from the repo root, then open " +
+          adminUrlHint() +
+          " (or the URL printed in the terminal) and reload this page."
+      );
+    }
+    renderPostList();
+  }
+
+  btnAddPost.addEventListener("click", openNewModal);
+
+  btnModalCancel.addEventListener("click", closeModal);
+  btnModalApply.addEventListener("click", applyModal);
+
+  postModal.querySelectorAll("[data-modal-close]").forEach(function (el) {
+    el.addEventListener("click", closeModal);
+  });
+
+  modalFileInput.addEventListener("change", function () {
+    if (modalFileInput.files && modalFileInput.files.length) {
+      handleModalFiles(modalFileInput.files);
+      modalFileInput.value = "";
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (postModal.hidden) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeModal();
+    }
+  });
+
+  fieldTitle.addEventListener("input", function () {
+    if (!modalDraft || slugManuallyEdited) return;
+    var s = sanitizeSlug(fieldTitle.value);
+    fieldSlug.value = s;
+    modalDraft.slug = s;
+  });
+
+  fieldSlug.addEventListener("input", function () {
+    if (modalDraft) slugManuallyEdited = true;
+  });
+
+  loadPosts();
 })();

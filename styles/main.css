@@ -68,6 +68,33 @@ body {
   border-bottom: 1px solid var(--color-border);
 }
 
+.site-header__inner {
+  position: relative;
+}
+
+.site-header__admin {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-decoration: none;
+  border-radius: var(--thumb-radius);
+}
+
+.site-header__admin:hover,
+.site-header__admin:focus-visible {
+  color: var(--color-accent);
+  outline: none;
+}
+
+.site-header__admin:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
+}
+
 .site-title {
   margin: 0 0 var(--space-xs);
   font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
@@ -145,25 +172,171 @@ body {
   margin-bottom: 0;
 }
 
+.post__body h1,
+.post__body h2,
+.post__body h3,
+.post__body h4 {
+  margin: var(--space-lg) 0 var(--space-sm);
+  font-weight: 600;
+  line-height: 1.25;
+  max-width: 65ch;
+  margin-inline: auto;
+  text-align: left;
+}
+
+.post__body h1 {
+  font-size: 1.35em;
+}
+
+.post__body h2 {
+  font-size: 1.2em;
+}
+
+.post__body h3 {
+  font-size: 1.1em;
+}
+
+.post__body h4 {
+  font-size: 1em;
+}
+
+.post__body h1:first-child,
+.post__body h2:first-child,
+.post__body h3:first-child,
+.post__body h4:first-child {
+  margin-top: 0;
+}
+
+.post__body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.post__body a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.post__body ul,
+.post__body ol {
+  margin: 0 0 var(--space-md);
+  padding-left: 1.35em;
+  max-width: 65ch;
+  margin-inline: auto;
+  text-align: left;
+}
+
+.post__body li {
+  margin: 0.25em 0;
+}
+
+.post__body li > p {
+  margin-bottom: 0.35em;
+}
+
+.post__body blockquote {
+  margin: 0 0 var(--space-md);
+  padding-left: var(--space-md);
+  border-left: 3px solid var(--color-border);
+  color: var(--color-muted);
+  max-width: 65ch;
+  margin-inline: auto;
+  text-align: left;
+}
+
+.post__body hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-lg) auto;
+  max-width: 65ch;
+}
+
+.post__body code {
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+}
+
+.post__body pre {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  max-width: 65ch;
+  margin-inline: auto;
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: var(--thumb-radius);
+  text-align: left;
+}
+
+.post__body pre code {
+  padding: 0;
+  background: none;
+  font-size: 0.88em;
+}
+
+.post__body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--thumb-radius);
+}
+
+.post__body table {
+  width: 100%;
+  max-width: 65ch;
+  margin: 0 auto var(--space-md);
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.92em;
+}
+
+.post__body th,
+.post__body td {
+  border: 1px solid var(--color-border);
+  padding: 0.4em 0.65em;
+  text-align: left;
+}
+
+.post__body th {
+  background: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+}
+
 .photo-grid {
   display: grid;
-  grid-template-columns: 1fr;
   gap: var(--grid-gap);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-@media (min-width: 36rem) {
-  .photo-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* Layout by number of images (set via data-count on the grid) */
+.photo-grid[data-count="1"] {
+  grid-template-columns: 1fr;
 }
 
-@media (min-width: 48rem) {
-  .photo-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+.photo-grid[data-count="2"] {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Two on top, one full width below */
+.photo-grid[data-count="3"] {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.photo-grid[data-count="3"] .photo-grid__item:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+/* 4+ images: 2×2 and continuing in two columns */
+.photo-grid.photo-grid--cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Odd count ≥5: last photo uses full row */
+.photo-grid.photo-grid--tail-full .photo-grid__item:last-child {
+  grid-column: 1 / -1;
 }
 
 .photo-grid__item {
