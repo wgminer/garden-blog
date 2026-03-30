@@ -28,6 +28,9 @@
     postImages: [],
     imageIndex: 0,
     lastFocus: null,
+    activePostSlug: "",
+    suppressHashSync: false,
+    postsData: [],
   };
 
   function sortByDateDesc(posts) {
@@ -72,11 +75,49 @@
     return DOMPurify.sanitize(html);
   }
 
-  function openCarousel(postImages, startIndex, triggerEl) {
+  function getPostAnchor(slug) {
+    return "post-" + sanitizeSlug(slug);
+  }
+
+  function getImageHash(slug, index) {
+    return (
+      "#image-" +
+      encodeURIComponent(sanitizeSlug(slug)) +
+      "-" +
+      encodeURIComponent(String(index + 1))
+    );
+  }
+
+  function parseImageHash(hash) {
+    var raw = String(hash || "").replace(/^#/, "");
+    var m = raw.match(/^image-([a-z0-9-]+)-([0-9]+)$/);
+    if (!m) return null;
+    var slug = decodeURIComponent(m[1] || "");
+    var oneBased = parseInt(decodeURIComponent(m[2] || "0"), 10);
+    if (!slug || !Number.isFinite(oneBased) || oneBased < 1) return null;
+    return { slug: slug, index: oneBased - 1 };
+  }
+
+  function replaceHash(hash) {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", hash);
+      return;
+    }
+    window.location.hash = hash.replace(/^#/, "");
+  }
+
+  function syncCarouselHash() {
+    if (state.suppressHashSync) return;
+    if (!state.postImages.length || !state.activePostSlug) return;
+    replaceHash(getImageHash(state.activePostSlug, state.imageIndex));
+  }
+
+  function openCarousel(postImages, startIndex, triggerEl, postSlug) {
     if (!postImages || !postImages.length) return;
     state.postImages = postImages;
     state.imageIndex = Math.max(0, Math.min(startIndex, postImages.length - 1));
     state.lastFocus = triggerEl || document.activeElement;
+    state.activePostSlug = sanitizeSlug(postSlug || "");
 
     carouselEl.hidden = false;
     carouselEl.setAttribute("aria-hidden", "false");
@@ -86,6 +127,7 @@
     });
 
     updateCarouselSlide();
+    syncCarouselHash();
     var closeBtn = carouselEl.querySelector(".carousel__close");
     if (closeBtn) closeBtn.focus();
   }
@@ -96,8 +138,15 @@
     document.body.classList.remove("carousel-open");
 
     var restore = state.lastFocus;
+    var postAnchor = state.activePostSlug
+      ? "#" + getPostAnchor(state.activePostSlug)
+      : "#posts";
     state.postImages = [];
     state.imageIndex = 0;
+    state.activePostSlug = "";
+    if (!state.suppressHashSync) {
+      replaceHash(postAnchor);
+    }
 
     window.setTimeout(function () {
       carouselEl.hidden = true;
@@ -115,6 +164,7 @@
     carouselImage.src = src;
     carouselImage.alt = "Photo " + (i + 1) + " of " + urls.length;
     carouselCounter.textContent = i + 1 + " / " + urls.length;
+    syncCarouselHash();
 
     btnPrev.disabled = urls.length <= 1;
     btnNext.disabled = urls.length <= 1;
@@ -236,7 +286,7 @@
         img.decoding = "async";
         btn.appendChild(img);
         btn.addEventListener("click", function () {
-          openCarousel(images, idx, btn);
+          openCarousel(images, idx, btn, post.slug);
         });
         li.appendChild(btn);
         grid.appendChild(li);
@@ -284,6 +334,51 @@
 
   document.addEventListener("keydown", onKeyDown);
 
+  function findPostBySlug(posts, slug) {
+    var target = sanitizeSlug(slug);
+    for (var i = 0; i < posts.length; i += 1) {
+      if (sanitizeSlug(posts[i] && posts[i].slug) === target) {
+        return posts[i];
+      }
+    }
+    return null;
+  }
+
+  function handleDeepLink(posts) {
+    var parsed = parseImageHash(window.location.hash || "");
+    if (!parsed) {
+      if (!carouselEl.hidden) {
+        state.suppressHashSync = true;
+        closeCarousel();
+        state.suppressHashSync = false;
+      }
+      return;
+    }
+    var post = findPostBySlug(posts, parsed.slug);
+    if (!post) return;
+    var images = Array.isArray(post.images) ? post.images : [];
+    if (!images.length) return;
+    var idx = Math.max(0, Math.min(parsed.index, images.length - 1));
+    if (
+      !carouselEl.hidden &&
+      state.activePostSlug === sanitizeSlug(post.slug) &&
+      state.postImages.length === images.length
+    ) {
+      state.imageIndex = idx;
+      updateCarouselSlide();
+      return;
+    }
+    state.suppressHashSync = true;
+    openCarousel(images, idx, null, post.slug);
+    state.suppressHashSync = false;
+    syncCarouselHash();
+  }
+
+  window.addEventListener("hashchange", function () {
+    if (!state.postsData.length) return;
+    handleDeepLink(state.postsData);
+  });
+
   fetch("data/posts.json")
     .then(function (res) {
       if (!res.ok) throw new Error("Could not load posts (" + res.status + ").");
@@ -294,7 +389,9 @@
         showError("No posts yet.");
         return;
       }
+      state.postsData = data;
       renderPosts(data);
+      handleDeepLink(data);
     })
     .catch(function () {
       showError(
